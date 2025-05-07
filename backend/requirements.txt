@@ -10,3 +10,4 @@ flake8>=6.0.0
 pydantic>=2.0.2
 email-validator>=2.0.0
 Flask-WTF>=1.0.0
+openai>=1.12.0
