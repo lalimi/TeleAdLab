@@ -46,13 +46,16 @@ def create_app():
     # Инициализация БД
     db.init_app(app)
     
-    # Регистрация blueprints
-    from app.api.routes import api_bp
-    app.register_blueprint(api_bp)
-    
     # Подключение CSRFProtect
     csrf = CSRFProtect()
     csrf.init_app(app)
+
+    # Импортируем blueprint после csrf.init_app
+    from app.api.routes import api_bp
+    app.register_blueprint(api_bp)
+
+    # Отключаем CSRF для всех API маршрутов
+    csrf.exempt(api_bp)
     
     with app.app_context():
         db.create_all()  # Создаем таблицы при запуске
