@@ -1,0 +1,506 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Агент для Креативов Telegram Ads</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body { font-family: 'Inter', sans-serif; }
+        .loader { border: 4px solid #f3f3f3; border-top: 4px solid #3498db; border-radius: 50%; width: 24px; height: 24px; animation: spin 1s linear infinite; margin: 10px auto; display: none; }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+        input[type="file"] { display: none; }
+        .custom-file-upload { border: 1px solid #ccc; display: inline-block; padding: 6px 12px; cursor: pointer; background-color: #f8f9fa; color: #333; border-radius: 0.375rem; transition: background-color 0.15s ease-in-out; }
+        .custom-file-upload:hover { background-color: #e2e6ea; }
+        /* Стили для сообщения о статусе ключа */
+        #key-status-message { font-size: 0.8rem; margin-top: 0.5rem; }
+        .key-set { color: green; }
+        .key-not-set { color: orange; }
+        .key-error { color: red; }
+        /* Стили для улучшенного отображения креативов */
+        .creative-card {
+            background-color: white;
+            border-radius: 0.5rem;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+            padding: 1rem;
+            margin-bottom: 1rem;
+            border-left: 4px solid #3b82f6;
+        }
+        .creative-text {
+            line-height: 1.5;
+            margin-bottom: 0.5rem;
+        }
+        .creative-image-idea {
+            font-style: italic;
+            font-size: 0.9rem;
+            color: #6b7280;
+            border-top: 1px dashed #e5e7eb;
+            padding-top: 0.5rem;
+            margin-top: 0.5rem;
+        }
+        /* Модальное окно улучшений */
+        .modal {
+            display: none;
+            position: fixed;
+            z-index: 100;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0,0,0,0.5);
+        }
+        .modal-content {
+            background-color: white;
+            margin: 10% auto;
+            padding: 1.5rem;
+            border-radius: 0.5rem;
+            width: 50%;
+            max-width: 500px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        }
+    </style>
+</head>
+<body class="bg-gray-100 text-gray-800 p-4 md:p-8">
+
+    <!-- Модальное окно для улучшения креатива -->
+    <div id="improve-modal" class="modal">
+        <div class="modal-content">
+            <h3 class="text-lg font-semibold mb-3">Улучшить креатив</h3>
+            <div id="modal-original" class="mb-3 p-3 bg-gray-50 rounded text-sm"></div>
+            <div class="mb-3">
+                <label class="block text-sm font-medium mb-1">Ваши инструкции по улучшению:</label>
+                <textarea id="improve-instructions" rows="3" class="w-full p-2 border rounded" placeholder="Например: замените слово X на Y, добавьте больше эмоциональности, сделайте более лаконичным..."></textarea>
+            </div>
+            <div class="flex justify-end space-x-2">
+                <button id="modal-cancel" class="px-4 py-2 bg-gray-200 rounded hover:bg-gray-300">Отмена</button>
+                <button id="modal-improve" class="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600">Улучшить</button>
+            </div>
+        </div>
+    </div>
+
+    <div class="max-w-2xl mx-auto bg-white p-6 md:p-8 rounded-lg shadow-md">
+
+        <h1 class="text-2xl md:text-3xl font-bold text-center mb-6 text-blue-600">
+            Генератор Креативов для Telegram Ads
+        </h1>
+
+        <!-- Карточка с API ключом (обновленная) -->
+        <div id="api-key-container" class="mb-6 p-4 border border-blue-200 rounded-md bg-blue-50">
+            <div id="api-key-header" class="flex justify-between items-center cursor-pointer">
+                <h3 class="text-lg font-semibold text-blue-700">Управление API ключом</h3>
+                <button id="toggle-api-key" class="text-blue-500 hover:text-blue-700">
+                    <span id="toggle-icon">▼</span>
+                </button>
+            </div>
+            
+            <div id="api-key-content" class="mt-3">
+                <label for="api-key" class="block text-sm font-medium text-gray-700 mb-1">
+                    Ваш API ключ LLM:
+                </label>
+                <div class="flex items-center space-x-2">
+                    <input type="password" id="api-key" name="api_key" class="flex-grow p-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500" placeholder="Введите ваш API ключ (например, sk-...)">
+                    <button id="save-key-button" class="bg-green-500 hover:bg-green-600 text-white font-bold py-2 px-4 rounded-md transition duration-150 ease-in-out">
+                        Сохранить
+                    </button>
+                </div>
+                <p class="text-xs text-gray-500 mt-1">Ключ будет сохранен на сервере для текущей сессии.</p>
+                <div id="key-status-message" class="key-not-set mt-2">Статус ключа: Неизвестно (или не сохранен)</div>
+            </div>
+            
+            <!-- Компактный вид при свернутом состоянии -->
+            <div id="api-key-collapsed" class="hidden mt-2">
+                <div class="text-sm text-green-600">
+                    <span class="font-medium">✓</span> API ключ настроен и готов к использованию
+                </div>
+            </div>
+        </div>
+
+        <div class="space-y-6">
+            <div>
+                <label class="block text-sm font-medium text-gray-700 mb-2">
+                    Загрузить файл с описанием проекта (необязательно):
+                </label>
+                <div class="flex items-center space-x-3">
+                    <label for="project-file" class="custom-file-upload">Выбрать файл</label>
+                    <input type="file" id="project-file" name="project_file" accept=".txt,.xlsx,.xls,.csv">
+                    <span id="file-name" class="text-sm text-gray-500">Файл не выбран</span>
+                </div>
+                 <p class="text-xs text-gray-500 mt-1">Поддерживаемые форматы: .txt, .xlsx, .xls, .csv</p>
+            </div>
+
+            <div>
+                <label for="prompt" class="block text-sm font-medium text-gray-700 mb-2">
+                    Основная задача для креативов:
+                </label>
+                <textarea id="prompt" name="prompt" rows="4" class="w-full p-3 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500" placeholder="Например: Создай рекламные тексты для привлечения подписчиков..."></textarea>
+            </div>
+        </div>
+
+        <div class="text-center mt-6 mb-6">
+            <button id="generate-button" class="bg-blue-500 hover:bg-blue-600 text-white font-bold py-2 px-6 rounded-md transition duration-150 ease-in-out">
+                Сгенерировать креативы
+            </button>
+        </div>
+
+        <div id="results-container" class="mt-6">
+            <h2 class="text-xl font-semibold mb-4 text-gray-700">Результаты:</h2>
+            <div id="loader" class="loader"></div>
+            <div id="creatives-output" class="space-y-4">
+                <p class="bg-gray-50 p-4 rounded-md border border-gray-200 min-h-[100px] text-gray-500 italic">
+                    Здесь появятся сгенерированные креативы...
+                </p>
+            </div>
+            <div id="error-message" class="mt-4 p-3 bg-red-100 text-red-700 border border-red-300 rounded-md" style="display: none;"></div>
+        </div>
+    </div>
+
+    <script>
+        // Получаем DOM-элементы
+        const generateButton = document.getElementById('generate-button');
+        const saveKeyButton = document.getElementById('save-key-button');
+        const apiKeyInput = document.getElementById('api-key');
+        const keyStatusMessage = document.getElementById('key-status-message');
+        const promptTextarea = document.getElementById('prompt');
+        const resultsOutput = document.getElementById('creatives-output');
+        const loader = document.getElementById('loader');
+        const errorMessageDiv = document.getElementById('error-message');
+        const fileInput = document.getElementById('project-file');
+        const fileNameSpan = document.getElementById('file-name');
+        
+        // Элементы модального окна
+        const improveModal = document.getElementById('improve-modal');
+        const modalOriginal = document.getElementById('modal-original');
+        const improveInstructions = document.getElementById('improve-instructions');
+        const modalCancel = document.getElementById('modal-cancel');
+        const modalImprove = document.getElementById('modal-improve');
+        
+        // Храним текущий улучшаемый креатив и его элемент DOM
+        let currentCreative = null;
+        let currentCreativeElement = null;
+
+        // Обновление статуса ключа
+        function setKeyStatus(message, type = 'not-set') {
+            keyStatusMessage.textContent = `Статус ключа: ${message}`;
+            keyStatusMessage.className = '';
+            if (type === 'set') {
+                keyStatusMessage.classList.add('key-set');
+            } else if (type === 'error') {
+                keyStatusMessage.classList.add('key-error');
+            } else {
+                keyStatusMessage.classList.add('key-not-set');
+            }
+        }
+
+        // В начале скрипта добавим переменные для новых элементов
+        const apiKeyContainer = document.getElementById('api-key-container');
+        const apiKeyHeader = document.getElementById('api-key-header');
+        const apiKeyContent = document.getElementById('api-key-content');
+        const apiKeyCollapsed = document.getElementById('api-key-collapsed');
+        const toggleApiKey = document.getElementById('toggle-api-key');
+        const toggleIcon = document.getElementById('toggle-icon');
+
+        // Функция для переключения видимости блока API ключа
+        function toggleApiKeyVisibility() {
+            const isVisible = !apiKeyContent.classList.contains('hidden');
+            
+            if (isVisible) {
+                // Сворачиваем
+                apiKeyContent.classList.add('hidden');
+                apiKeyCollapsed.classList.remove('hidden');
+                toggleIcon.textContent = '▶';
+            } else {
+                // Разворачиваем
+                apiKeyContent.classList.remove('hidden');
+                apiKeyCollapsed.classList.add('hidden');
+                toggleIcon.textContent = '▼';
+            }
+        }
+
+        // Добавляем обработчик для заголовка
+        apiKeyHeader.addEventListener('click', toggleApiKeyVisibility);
+
+        // Обработчик для сохранения ключа
+        saveKeyButton.addEventListener('click', () => {
+            const apiKey = apiKeyInput.value.trim();
+            if (!apiKey) {
+                setKeyStatus('Ошибка: Введите API ключ!', 'error');
+                apiKeyInput.focus();
+                return;
+            }
+
+            setKeyStatus('Сохранение ключа...', 'not-set');
+            saveKeyButton.disabled = true;
+            apiKeyInput.disabled = true;
+
+            fetch('/api/set_key', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({ api_key: apiKey })
+            })
+            .then(response => {
+                if (!response.ok) {
+                    return response.json().then(err => { throw new Error(err.error || response.statusText) });
+                }
+                return response.json();
+            })
+            .then(data => {
+                setKeyStatus(data.message || 'Ключ успешно сохранен!', 'set');
+                apiKeyInput.value = '';
+                
+                // Автоматически сворачиваем блок после успешного сохранения
+                setTimeout(() => {
+                    // Используем таймаут, чтобы пользователь увидел сообщение об успехе
+                    apiKeyContent.classList.add('hidden');
+                    apiKeyCollapsed.classList.remove('hidden');
+                    toggleIcon.textContent = '▶';
+                }, 1500);
+            })
+            .catch(error => {
+                console.error("Ошибка при сохранении ключа:", error);
+                setKeyStatus(`Ошибка сохранения: ${error.message}`, 'error');
+            })
+            .finally(() => {
+                saveKeyButton.disabled = false;
+                apiKeyInput.disabled = false;
+            });
+        });
+
+        // Обработчик изменения файла
+        fileInput.addEventListener('change', () => {
+            fileNameSpan.textContent = fileInput.files.length > 0 ? fileInput.files[0].name : 'Файл не выбран';
+            fileNameSpan.classList.toggle('text-gray-800', fileInput.files.length > 0);
+            fileNameSpan.classList.toggle('text-gray-500', fileInput.files.length === 0);
+        });
+
+        // Открытие модального окна для улучшения креатива
+        function openImproveModal(creative, element) {
+            // Сохраняем текущий креатив и его DOM-элемент
+            currentCreative = creative;
+            currentCreativeElement = element;
+            
+            // Показываем оригинальный текст
+            modalOriginal.textContent = creative;
+            
+            // Очищаем поле инструкций
+            improveInstructions.value = '';
+            
+            // Открываем модальное окно
+            improveModal.style.display = 'block';
+        }
+        
+        // Закрытие модального окна
+        modalCancel.addEventListener('click', () => {
+            improveModal.style.display = 'none';
+        });
+        
+        // Закрытие по клику вне модального окна
+        window.addEventListener('click', (event) => {
+            if (event.target === improveModal) {
+                improveModal.style.display = 'none';
+            }
+        });
+        
+        // Обработка улучшения креатива
+        modalImprove.addEventListener('click', async () => {
+            const instructions = improveInstructions.value.trim();
+            if (!instructions) {
+                alert('Пожалуйста, введите инструкции по улучшению.');
+                return;
+            }
+            
+            // Показываем индикатор загрузки
+            currentCreativeElement.classList.add('opacity-50');
+            
+            try {
+                const response = await fetch('/api/improve_creative', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        creative: currentCreative,
+                        edits: instructions
+                    })
+                });
+                
+                const data = await response.json();
+                
+                if (response.ok) {
+                    // Обновляем текст в карточке
+                    const textElement = currentCreativeElement.querySelector('.creative-text');
+                    const imageElement = currentCreativeElement.querySelector('.creative-image-idea');
+                    
+                    // Парсим улучшенный текст и рекомендацию для изображения
+                    let improvedText = data.improved_creative;
+                    let imageIdea = '';
+                    
+                    // Если в тексте есть рекомендация, отделяем её
+                    if (improvedText.includes('+ Рекомендация')) {
+                        const parts = improvedText.split('+ Рекомендация');
+                        improvedText = parts[0].trim();
+                        imageIdea = '+ Рекомендация' + parts[1];
+                    }
+                    
+                    // Обновляем элементы
+                    textElement.textContent = improvedText;
+                    if (imageIdea && imageElement) {
+                        imageElement.textContent = imageIdea;
+                    }
+                } else {
+                    throw new Error(data.error || 'Ошибка улучшения креатива');
+                }
+            } catch (error) {
+                alert(`Ошибка: ${error.message}`);
+            } finally {
+                // Скрываем индикатор загрузки
+                currentCreativeElement.classList.remove('opacity-50');
+                // Закрываем модальное окно
+                improveModal.style.display = 'none';
+            }
+        });
+
+        // Генерация креативов
+        generateButton.addEventListener('click', () => {
+            const userPrompt = promptTextarea.value.trim();
+            const projectFile = fileInput.files.length > 0 ? fileInput.files[0] : null;
+
+            // Валидация
+            if (!userPrompt && !projectFile) {
+                errorMessageDiv.textContent = 'Пожалуйста, введите основную задачу или загрузите файл проекта.';
+                errorMessageDiv.style.display = 'block';
+                resultsOutput.innerHTML = '';
+                resultsOutput.innerHTML = '<p class="bg-gray-50 p-4 rounded-md border border-gray-200 min-h-[100px] text-gray-500 italic">Здесь появятся сгенерированные креативы...</p>';
+                return;
+            }
+
+            // Подготовка к отправке
+            resultsOutput.innerHTML = '<p class="p-4 text-center text-gray-500 italic">Генерация креативов...</p>';
+            errorMessageDiv.style.display = 'none';
+            loader.style.display = 'block';
+            generateButton.disabled = true;
+
+            // Формирование данных для отправки
+            const formData = new FormData();
+            formData.append('prompt', userPrompt);
+            if (projectFile) {
+                const filename = projectFile.name;
+                const raw = projectFile.slice(0, projectFile.size);
+                const ext = filename.split('.').pop().toLowerCase();
+                formData.append('project_file', new Blob([raw]), filename);
+            }
+
+            // Отправка запроса
+            fetch('/api/generate_creatives', {
+                method: 'POST',
+                body: formData
+            })
+            .then(response => {
+                return response.json().then(data => {
+                    if (!response.ok) {
+                        throw new Error(data.error || `Ошибка сервера: ${response.status} ${response.statusText}`);
+                    }
+                    return data;
+                });
+            })
+            .then(data => {
+                // Отображение результатов
+                resultsOutput.innerHTML = '';
+
+                if (data.generated_creatives && data.generated_creatives.length > 0) {
+                    // Создаем красивые карточки для каждого креатива
+                    data.generated_creatives.forEach((creative, index) => {
+                        // Разделяем текст креатива и рекомендацию для изображения
+                        let textContent = creative;
+                        let imageIdea = '';
+                        
+                        if (creative.includes('+ Рекомендация')) {
+                            const parts = creative.split('+ Рекомендация');
+                            textContent = parts[0].trim();
+                            imageIdea = '+ Рекомендация' + parts[1];
+                        }
+                        
+                        // Создаем карточку
+                        const card = document.createElement('div');
+                        card.classList.add('creative-card');
+                        
+                        // Создаем заголовок
+                        const header = document.createElement('div');
+                        header.classList.add('flex', 'justify-between', 'items-center', 'mb-2');
+                        
+                        const title = document.createElement('h3');
+                        title.classList.add('font-semibold');
+                        title.textContent = `Креатив ${index + 1}`;
+                        
+                        const improveBtn = document.createElement('button');
+                        improveBtn.classList.add('text-blue-500', 'hover:text-blue-700', 'font-medium');
+                        improveBtn.textContent = 'Улучшить';
+                        improveBtn.addEventListener('click', () => {
+                            openImproveModal(creative, card);
+                        });
+                        
+                        header.appendChild(title);
+                        header.appendChild(improveBtn);
+                        
+                        // Создаем содержимое
+                        const content = document.createElement('div');
+                        content.classList.add('creative-text');
+                        content.textContent = textContent;
+                        
+                        // Добавляем рекомендацию для изображения, если есть
+                        let imageElement = null;
+                        if (imageIdea) {
+                            imageElement = document.createElement('div');
+                            imageElement.classList.add('creative-image-idea');
+                            imageElement.textContent = imageIdea;
+                        }
+                        
+                        // Собираем карточку
+                        card.appendChild(header);
+                        card.appendChild(content);
+                        if (imageElement) {
+                            card.appendChild(imageElement);
+                        }
+                        
+                        // Добавляем в контейнер
+                        resultsOutput.appendChild(card);
+                    });
+                } else {
+                    resultsOutput.innerHTML = '<p class="p-4 text-center text-gray-500 italic">Получен пустой результат.</p>';
+                }
+            })
+            .catch(error => {
+                console.error("Ошибка при запросе к API:", error);
+                errorMessageDiv.textContent = `Ошибка: ${error.message}`;
+                errorMessageDiv.style.display = 'block';
+                resultsOutput.innerHTML = '<p class="p-4 text-center text-gray-500 italic">Не удалось сгенерировать креативы.</p>';
+            })
+            .finally(() => {
+                loader.style.display = 'none';
+                generateButton.disabled = false;
+            });
+        });
+
+        // Добавим проверку статуса ключа при загрузке страницы
+        window.addEventListener('DOMContentLoaded', () => {
+            // Проверяем, установлен ли ключ
+            fetch('/api/check_key_status')
+                .then(response => response.json())
+                .then(data => {
+                    if (data.status === 'set') {
+                        setKeyStatus(data.message || 'Ключ найден в сессии', 'set');
+                        // Если ключ установлен, сворачиваем блок
+                        apiKeyContent.classList.add('hidden');
+                        apiKeyCollapsed.classList.remove('hidden');
+                        toggleIcon.textContent = '▶';
+                    }
+                })
+                .catch(error => {
+                    console.error("Ошибка проверки статуса ключа:", error);
+                });
+        });
+    </script>
+
+</body>
+</html>

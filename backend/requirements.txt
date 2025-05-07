@@ -1,0 +1,11 @@
+Flask==3.0.0
+Flask-SQLAlchemy==3.1.1
+python-dotenv>=0.19.0
+Werkzeug>=2.2.0
+flask-migrate>=4.0.4
+flask-cors>=4.0.0
+pytest>=7.3.1
+black>=23.3.0
+flake8>=6.0.0
+pydantic>=2.0.2
+email-validator>=2.0.0
